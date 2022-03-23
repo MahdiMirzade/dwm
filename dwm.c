@@ -58,8 +58,9 @@
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLEONTAG(C, T)    ((C->tags & T))
-#define ISVISIBLE(C)            ISVISIBLEONTAG(C, C->mon->tagset[C->mon->seltags] || C->issticky)
+#define INTERSECTC(x,y,w,h,z)   (MAX(0, MIN((x)+(w),(z)->x+(z)->w) - MAX((x),(z)->x)) \
+                               * MAX(0, MIN((y)+(h),(z)->y+(z)->h) - MAX((y),(z)->y)))
+#define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]) || C->issticky)
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -132,7 +133,7 @@ struct Client {
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
 	int bw, oldbw;
 	unsigned int tags;
-	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, issticky, isterminal, noswallow;
+	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen, issticky, isterminal, noswallow, beingmoved;
         pid_t pid;
 	Client *next;
 	Client *snext;
@@ -199,7 +200,7 @@ static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interac
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
-static void attachaside(Client *c);
+static void attachbottom(Client *c);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
@@ -243,11 +244,13 @@ static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
-static Client *nexttagged(Client *c);
+static void moveorplace(const Arg *arg);
 static Client *nexttiled(Client *c);
+static void placemouse(const Arg *arg);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
+static Client *recttoclient(int x, int y, int w, int h);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void removesystrayicon(Client *i);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
@@ -302,6 +305,7 @@ static void updatetitle(Client *c);
 static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
+static void warp(const Client *c);
 static Client *wintoclient(Window w);
 static Monitor *wintomon(Window w);
 static Client *wintosystrayicon(Window w);
@@ -309,6 +313,7 @@ static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void xrdb(const Arg *arg);
+static void movestack(const Arg *arg);
 static void zoom(const Arg *arg);
 
 static pid_t getparentprocess(pid_t p);
@@ -523,14 +528,12 @@ attach(Client *c)
 }
 
 void
-attachaside(Client *c) {
-	Client *at = nexttagged(c);
-	if(!at) {
-		attach(c);
-		return;
-	}
-	c->next = at->next;
-	at->next = c;
+attachbottom(Client *c)
+{
+	Client **tc;
+	c->next = NULL;
+	for (tc = &c->mon->clients; *tc; tc = &(*tc)->next);
+	*tc = c;
 }
 
 void
@@ -1241,6 +1244,7 @@ focusmon(const Arg *arg)
 	unfocus(selmon->sel, 0);
 	selmon = m;
 	focus(NULL);
+	warp(selmon->sel);
 }
 
 void
@@ -1256,6 +1260,7 @@ focusnthmon(const Arg *arg)
 	unfocus(selmon->sel, 0);
 	selmon = m;
 	focus(NULL);
+        warp(selmon->sel);
 }
 
 void
@@ -1480,6 +1485,45 @@ loadxrdb()
       			xrdb = XrmGetStringDatabase(resm);
 
       			if (xrdb != NULL) {
+                                /* Load ^color* */
+				XRDB_LOAD_COLOR("foreground", fgcolor);
+                                XRDB_LOAD_COLOR("background", bgcolor);
+                                XRDB_LOAD_COLOR("color0", color0);
+                                XRDB_LOAD_COLOR("color1", color1);
+                                XRDB_LOAD_COLOR("color2", color2);
+                                XRDB_LOAD_COLOR("color3", color3);
+                                XRDB_LOAD_COLOR("color4", color4);
+                                XRDB_LOAD_COLOR("color5", color5);
+                                XRDB_LOAD_COLOR("color6", color6);
+                                XRDB_LOAD_COLOR("color7", color7);
+                                XRDB_LOAD_COLOR("color8", color8);
+                                XRDB_LOAD_COLOR("color9", color9);
+                                XRDB_LOAD_COLOR("color10", color10);
+                                XRDB_LOAD_COLOR("color11", color11);
+                                XRDB_LOAD_COLOR("color12", color12);
+                                XRDB_LOAD_COLOR("color13", color13);
+                                XRDB_LOAD_COLOR("color14", color14);
+                                XRDB_LOAD_COLOR("color15", color15);
+                                /* Load ^*color* */
+				XRDB_LOAD_COLOR("*foreground", fgcolor);
+                                XRDB_LOAD_COLOR("*background", bgcolor);
+                                XRDB_LOAD_COLOR("*color0", color0);
+                                XRDB_LOAD_COLOR("*color1", color1);
+                                XRDB_LOAD_COLOR("*color2", color2);
+                                XRDB_LOAD_COLOR("*color3", color3);
+                                XRDB_LOAD_COLOR("*color4", color4);
+                                XRDB_LOAD_COLOR("*color5", color5);
+                                XRDB_LOAD_COLOR("*color6", color6);
+                                XRDB_LOAD_COLOR("*color7", color7);
+                                XRDB_LOAD_COLOR("*color8", color8);
+                                XRDB_LOAD_COLOR("*color9", color9);
+                                XRDB_LOAD_COLOR("*color10", color10);
+                                XRDB_LOAD_COLOR("*color11", color11);
+                                XRDB_LOAD_COLOR("*color12", color12);
+                                XRDB_LOAD_COLOR("*color13", color13);
+                                XRDB_LOAD_COLOR("*color14", color14);
+                                XRDB_LOAD_COLOR("*color15", color15);
+                                /* Load ^*.color* */
 				XRDB_LOAD_COLOR("*.foreground", fgcolor);
                                 XRDB_LOAD_COLOR("*.background", bgcolor);
                                 XRDB_LOAD_COLOR("*.color0", color0);
@@ -1556,7 +1600,7 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
 		XRaiseWindow(dpy, c->win);
-	attachaside(c);
+	attachbottom(c);
 	attachstack(c);
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
@@ -1636,6 +1680,14 @@ motionnotify(XEvent *e)
 }
 
 void
+moveorplace(const Arg *arg) {
+	if ((!selmon->lt[selmon->sellt]->arrange || (selmon->sel && selmon->sel->isfloating)))
+		movemouse(arg);
+	else
+		placemouse(arg);
+}
+
+void
 movemouse(const Arg *arg)
 {
 	int x, y, ocx, ocy, nx, ny;
@@ -1696,20 +1748,143 @@ movemouse(const Arg *arg)
 }
 
 Client *
-nexttagged(Client *c) {
-	Client *walked = c->mon->clients;
-	for(;
-		walked && (walked->isfloating || !ISVISIBLEONTAG(walked, c->tags));
-		walked = walked->next
-	);
-	return walked;
-}
-
-Client *
 nexttiled(Client *c)
 {
 	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
 	return c;
+}
+
+void
+placemouse(const Arg *arg)
+{
+	int x, y, px, py, ocx, ocy, nx = -9999, ny = -9999, freemove = 0;
+	Client *c, *r = NULL, *at, *prevr;
+	Monitor *m;
+	XEvent ev;
+	XWindowAttributes wa;
+	Time lasttime = 0;
+	int attachmode, prevattachmode;
+	attachmode = prevattachmode = -1;
+
+	if (!(c = selmon->sel) || !c->mon->lt[c->mon->sellt]->arrange) /* no support for placemouse when floating layout is used */
+		return;
+	if (c->isfullscreen) /* no support placing fullscreen windows by mouse */
+		return;
+	restack(selmon);
+	prevr = c;
+	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
+		None, cursor[CurMove]->cursor, CurrentTime) != GrabSuccess)
+		return;
+
+	c->isfloating = 0;
+	c->beingmoved = 1;
+
+	XGetWindowAttributes(dpy, c->win, &wa);
+	ocx = wa.x;
+	ocy = wa.y;
+
+	if (arg->i == 2) // warp cursor to client center
+		XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, WIDTH(c) / 2, HEIGHT(c) / 2);
+
+	if (!getrootptr(&x, &y))
+		return;
+
+	do {
+		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
+		switch (ev.type) {
+		case ConfigureRequest:
+		case Expose:
+		case MapRequest:
+			handler[ev.type](&ev);
+			break;
+		case MotionNotify:
+			if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+				continue;
+			lasttime = ev.xmotion.time;
+
+			nx = ocx + (ev.xmotion.x - x);
+			ny = ocy + (ev.xmotion.y - y);
+
+			if (!freemove && (abs(nx - ocx) > snap || abs(ny - ocy) > snap))
+				freemove = 1;
+
+			if (freemove)
+				XMoveWindow(dpy, c->win, nx, ny);
+
+			if ((m = recttomon(ev.xmotion.x, ev.xmotion.y, 1, 1)) && m != selmon)
+				selmon = m;
+
+			if (arg->i == 1) { // tiled position is relative to the client window center point
+				px = nx + wa.width / 2;
+				py = ny + wa.height / 2;
+			} else { // tiled position is relative to the mouse cursor
+				px = ev.xmotion.x;
+				py = ev.xmotion.y;
+			}
+
+			r = recttoclient(px, py, 1, 1);
+
+			if (!r || r == c)
+				break;
+
+			attachmode = 0; // below
+			if (((float)(r->y + r->h - py) / r->h) > ((float)(r->x + r->w - px) / r->w)) {
+				if (abs(r->y - py) < r->h / 2)
+					attachmode = 1; // above
+			} else if (abs(r->x - px) < r->w / 2)
+				attachmode = 1; // above
+
+			if ((r && r != prevr) || (attachmode != prevattachmode)) {
+				detachstack(c);
+				detach(c);
+				if (c->mon != r->mon) {
+					arrangemon(c->mon);
+					c->tags = r->mon->tagset[r->mon->seltags];
+				}
+
+				c->mon = r->mon;
+				r->mon->sel = r;
+
+				if (attachmode) {
+					if (r == r->mon->clients)
+						attach(c);
+					else {
+						for (at = r->mon->clients; at->next != r; at = at->next);
+						c->next = at->next;
+						at->next = c;
+					}
+				} else {
+					c->next = r->next;
+					r->next = c;
+				}
+
+				attachstack(c);
+				arrangemon(r->mon);
+				prevr = r;
+				prevattachmode = attachmode;
+			}
+			break;
+		}
+	} while (ev.type != ButtonRelease);
+	XUngrabPointer(dpy, CurrentTime);
+
+	if ((m = recttomon(ev.xmotion.x, ev.xmotion.y, 1, 1)) && m != c->mon) {
+		detach(c);
+		detachstack(c);
+		arrangemon(c->mon);
+		c->mon = m;
+		c->tags = m->tagset[m->seltags];
+		attach(c);
+		attachstack(c);
+		selmon = m;
+	}
+
+	focus(c);
+	c->beingmoved = 0;
+
+	if (nx != -9999)
+		resize(c, nx, ny, c->w, c->h, 0);
+	arrangemon(c->mon);
 }
 
 void
@@ -1776,6 +1951,21 @@ quit(const Arg *arg)
 	running = 0;
 }
 
+Client *
+recttoclient(int x, int y, int w, int h)
+{
+	Client *c, *r = NULL;
+	int a, area = 0;
+
+	for (c = nexttiled(selmon->clients); c; c = nexttiled(c->next)) {
+		if ((a = INTERSECTC(x, y, w, h, c)) > area) {
+			area = a;
+			r = c;
+		}
+	}
+	return r;
+}
+
 Monitor *
 recttomon(int x, int y, int w, int h)
 {
@@ -1827,6 +2017,10 @@ resizeclient(Client *c, int x, int y, int w, int h)
 	c->oldy = c->y; c->y = wc.y = y;
 	c->oldw = c->w; c->w = wc.width = w;
 	c->oldh = c->h; c->h = wc.height = h;
+
+	if (c->beingmoved)
+		return;
+
 	wc.border_width = c->bw;
 	if (((nexttiled(c->mon->clients) == c && !nexttiled(c->next))
 	    || &monocle == c->mon->lt[c->mon->sellt]->arrange)
@@ -1934,6 +2128,8 @@ restack(Monitor *m)
 	}
 	XSync(dpy, False);
 	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+	if (m == selmon && (m->tagset[m->seltags] & m->sel->tags) && selmon->lt[selmon->sellt] != &layouts[2])
+		warp(m->sel);
 }
 
 void
@@ -2061,7 +2257,7 @@ sendmon(Client *c, Monitor *m)
 	detachstack(c);
 	c->mon = m;
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-	attachaside(c);
+	attachbottom(c);
 	attachstack(c);
 	focus(NULL);
 	arrange(NULL);
@@ -2661,7 +2857,7 @@ updategeom(void)
 					m->clients = c->next;
 					detachstack(c);
 					c->mon = mons;
-					attachaside(c);
+					attachbottom(c);
 					attachstack(c);
 				}
 				if (m == selmon)
@@ -3058,6 +3254,28 @@ swallowingclient(Window w)
 	return NULL;
 }
 
+void
+warp(const Client *c)
+{
+	int x, y;
+
+	if (!c) {
+		XWarpPointer(dpy, None, root, 0, 0, 0, 0, selmon->wx + selmon->ww/2, selmon->wy + selmon->wh/2);
+		return;
+	}
+
+	if (!getrootptr(&x, &y) ||
+	    (x > c->x - c->bw &&
+	     y > c->y - c->bw &&
+	     x < c->x + c->w + c->bw*2 &&
+	     y < c->y + c->h + c->bw*2) ||
+	    (y > c->mon->by && y < c->mon->by + bh) ||
+	    (c->mon->topbar && !y))
+		return;
+
+	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w / 2, c->h / 2);
+}
+
 Client *
 wintoclient(Window w)
 {
@@ -3159,6 +3377,55 @@ systraytomon(Monitor *m) {
 	if(systraypinningfailfirst && n < systraypinning)
 		return mons;
 	return t;
+}
+
+void
+movestack(const Arg *arg) {
+	Client *c = NULL, *p = NULL, *pc = NULL, *i;
+
+	if(arg->i > 0) {
+		/* find the client after selmon->sel */
+		for(c = selmon->sel->next; c && (!ISVISIBLE(c) || c->isfloating); c = c->next);
+		if(!c)
+			for(c = selmon->clients; c && (!ISVISIBLE(c) || c->isfloating); c = c->next);
+
+	}
+	else {
+		/* find the client before selmon->sel */
+		for(i = selmon->clients; i != selmon->sel; i = i->next)
+			if(ISVISIBLE(i) && !i->isfloating)
+				c = i;
+		if(!c)
+			for(; i; i = i->next)
+				if(ISVISIBLE(i) && !i->isfloating)
+					c = i;
+	}
+	/* find the client before selmon->sel and c */
+	for(i = selmon->clients; i && (!p || !pc); i = i->next) {
+		if(i->next == selmon->sel)
+			p = i;
+		if(i->next == c)
+			pc = i;
+	}
+
+	/* swap c and selmon->sel selmon->clients in the selmon->clients list */
+	if(c && c != selmon->sel) {
+		Client *temp = selmon->sel->next==c?selmon->sel:selmon->sel->next;
+		selmon->sel->next = c->next==selmon->sel?c:c->next;
+		c->next = temp;
+
+		if(p && p != c)
+			p->next = c;
+		if(pc && pc != selmon->sel)
+			pc->next = selmon->sel;
+
+		if(selmon->sel == selmon->clients)
+			selmon->clients = c;
+		else if(c == selmon->clients)
+			selmon->clients = selmon->sel;
+
+		arrange(selmon);
+	}
 }
 
 void
