@@ -168,6 +168,8 @@ static Key keys[] = {
         { MODKEY,                       XK_minus,   setgaps,        {.i = -1 } },
         { MODKEY,                       XK_equal,   setgaps,        {.i = +1 } },
         { MODKEY|ShiftMask,             XK_equal,   setgaps,        {.i = 0  } },
+        { MODKEY|ControlMask,           XK_minus,   shiftview,      {.i = -1 } },
+        { MODKEY|ControlMask,           XK_equal,   shiftview,      {.i = +1 } },
 	TAGKEYS(                        XK_1,                       0)
 	TAGKEYS(                        XK_2,                       1)
 	TAGKEYS(                        XK_3,                       2)
@@ -179,7 +181,9 @@ static Key keys[] = {
 	TAGKEYS(                        XK_9,                       8)
 	{ MODKEY|ShiftMask,             XK_r,       quit,           {1} }, 
 	{ MODKEY|ShiftMask,             XK_q,       quit,           {0} },
-        { MODKEY,                       XK_w,       spawn,          SHCMD("st -c \"st-float\" -g \"80x24+400+150\" -e sh -c \"set-bg -s\"") },
+        { MODKEY,                       XK_w,       spawn,          SHCMD("qutebrowser \":open -t\"") },
+        { MODKEY|ShiftMask,             XK_w,       spawn,          SHCMD("st -c \"st-float\" -g \"80x24+400+150\" -e sh -c \"set-bg -s\"") },
+        { MODKEY|ShiftMask,             XK_s,       spawn,          SHCMD("st -c \"st-float\" -g 50x10 -e sh -c \"fetch eof; sleep 12000\"") },
         { MODKEY|ShiftMask,             XK_t,       spawn,          SHCMD("set-theme -s") },
         { MODKEY|ControlMask,           XK_l,       spawn,          SHCMD("lock") },
         { MODKEY,                       XK_grave,   spawn,          SHCMD("emoji insert") },
@@ -218,6 +222,8 @@ static Button buttons[] = {
 	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
 	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
 	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
+        { ClkTagBar,            0,              Button4,        shiftview,      {.i = -1} },
+        { ClkTagBar,            0,              Button5,        shiftview,      {.i = +1} },
         { ClkLtSymbol,          0,              Button1,        cyclelayout,    {.i = +1} },
         { ClkLtSymbol,          0,              Button2,        setlayout,      {.v = &layouts[0]} },
         { ClkLtSymbol,          0,              Button3,        cyclelayout,    {.i = -1} },
