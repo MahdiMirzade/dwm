@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Mahdi's dwm
+Comment=Mahdi's build of dwm
+Exec=~/.config/dwm/autostart.sh
+Type=Application

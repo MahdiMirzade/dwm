@@ -195,8 +195,29 @@ struct Systray {
 };
 
 /* function declarations */
-static void applyrules(Client *c);
+static Atom getatomprop(Client *c, Atom prop);
+static Client *nexttiled(Client *c);
+static Client *recttoclient(int x, int y, int w, int h);
+static Client *wintoclient(Window w);
+static Client *wintosystrayicon(Window w);
+static Monitor *createmon(void);
+static Monitor *dirtomon(int dir);
+static Monitor *numtomon(int num);
+static Monitor *recttomon(int x, int y, int w, int h);
+static Monitor *systraytomon(Monitor *m);
+static Monitor *wintomon(Window w);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
+static int drawstatusbar(Monitor *m, int bh, char* text);
+static int getrootptr(int *x, int *y);
+static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
+static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
+static int updategeom(void);
+static int xerror(Display *dpy, XErrorEvent *ee);
+static int xerrordummy(Display *dpy, XErrorEvent *ee);
+static int xerrorstart(Display *dpy, XErrorEvent *ee);
+static long getstate(Window w);
+static unsigned int getsystraywidth();
+static void applyrules(Client *c);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
@@ -210,16 +231,12 @@ static void clientmessage(XEvent *e);
 static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
-static Monitor *createmon(void);
 static void cyclelayout(const Arg *arg);
 static void destroynotify(XEvent *e);
 static void detach(Client *c);
 static void detachstack(Client *c);
-static Monitor *dirtomon(int dir);
-static Monitor *numtomon(int num);
 static void drawbar(Monitor *m);
 static void drawbars(void);
-static int drawstatusbar(Monitor *m, int bh, char* text);
 static void enternotify(XEvent *e);
 static void expose(XEvent *e);
 static void focus(Client *c);
@@ -227,13 +244,9 @@ static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusnthmon(const Arg *arg);
 static void focusstack(const Arg *arg);
-static Atom getatomprop(Client *c, Atom prop);
-static int getrootptr(int *x, int *y);
-static long getstate(Window w);
-static unsigned int getsystraywidth();
-static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
+static void grid(Monitor *m);
 static void incnmaster(const Arg *arg);
 static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
@@ -245,13 +258,11 @@ static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
 static void moveorplace(const Arg *arg);
-static Client *nexttiled(Client *c);
+static void movestack(const Arg *arg);
 static void placemouse(const Arg *arg);
 static void pop(Client *);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
-static Client *recttoclient(int x, int y, int w, int h);
-static Monitor *recttomon(int x, int y, int w, int h);
 static void removesystrayicon(Client *i);
 static void resize(Client *c, int x, int y, int w, int h, int interact);
 static void resizebarwin(Monitor *m);
@@ -262,7 +273,6 @@ static void restack(Monitor *m);
 static void run(void);
 static void runautostart(void);
 static void scan(void);
-static int sendevent(Window w, Atom proto, int m, long d0, long d1, long d2, long d3, long d4);
 static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
@@ -272,12 +282,12 @@ static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
 static void seturgent(Client *c, int urg);
+static void shiftview(const Arg *arg);
 static void showhide(Client *c);
 static void sigchld(int unused);
 static void sighup(int unused);
 static void sigterm(int unused);
 static void spawn(const Arg *arg);
-static Monitor *systraytomon(Monitor *m);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tagnthmon(const Arg *arg);
@@ -294,7 +304,6 @@ static void unmapnotify(XEvent *e);
 static void updatebarpos(Monitor *m);
 static void updatebars(void);
 static void updateclientlist(void);
-static int updategeom(void);
 static void updatenumlockmask(void);
 static void updatesizehints(Client *c);
 static void updatestatus(void);
@@ -306,15 +315,7 @@ static void updatewindowtype(Client *c);
 static void updatewmhints(Client *c);
 static void view(const Arg *arg);
 static void warp(const Client *c);
-static Client *wintoclient(Window w);
-static Monitor *wintomon(Window w);
-static Client *wintosystrayicon(Window w);
-static int xerror(Display *dpy, XErrorEvent *ee);
-static int xerrordummy(Display *dpy, XErrorEvent *ee);
-static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void xrdb(const Arg *arg);
-static void movestack(const Arg *arg);
-static void shiftview(const Arg *arg);
 static void zoom(const Arg *arg);
 
 static pid_t getparentprocess(pid_t p);
@@ -1664,6 +1665,42 @@ monocle(Monitor *m)
 }
 
 void
+grid(Monitor *m) {
+	unsigned int n, cols, rows, cn, rn, i, cx, cy, cw, ch;
+	Client *c;
+
+	for(n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++) ;
+	if(n == 0)
+		return;
+
+	/* grid dimensions */
+	for(cols = 0; cols <= n/2; cols++)
+		if(cols*cols >= n)
+			break;
+	if(n == 5) /* set layout against the general calculation: not 1:2:2, but 2:3 */
+		cols = 2;
+	rows = n/cols;
+
+	/* window geometries */
+	cw = cols ? m->ww / cols : m->ww;
+	cn = 0; /* current column number */
+	rn = 0; /* current row number */
+	for(i = 0, c = nexttiled(m->clients); c; i++, c = nexttiled(c->next)) {
+		if(i/rows + 1 > cols - n%cols)
+			rows = n/cols + 1;
+		ch = rows ? m->wh / rows : m->wh;
+		cx = m->wx + cn*cw;
+		cy = m->wy + rn*ch;
+		resize(c, cx, cy, cw - 2 * c->bw, ch - 2 * c->bw, False);
+		rn++;
+		if(rn >= rows) {
+			rn = 0;
+			cn++;
+		}
+	}
+}
+
+void
 motionnotify(XEvent *e)
 {
 	static Monitor *mon = NULL;
@@ -1718,7 +1755,7 @@ movemouse(const Arg *arg)
 			handler[ev.type](&ev);
 			break;
 		case MotionNotify:
-			if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+			if ((ev.xmotion.time - lasttime) <= (100 / 60))
 				continue;
 			lasttime = ev.xmotion.time;
 
@@ -1799,7 +1836,7 @@ placemouse(const Arg *arg)
 			handler[ev.type](&ev);
 			break;
 		case MotionNotify:
-			if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+			if ((ev.xmotion.time - lasttime) <= (100 / 60))
 				continue;
 			lasttime = ev.xmotion.time;
 
@@ -3477,7 +3514,7 @@ main(int argc, char *argv[])
 {
 	if (argc == 2 && !strcmp("-v", argv[1]))
 		die("dwm-"VERSION);
-	else if (argc != 1)
+        else if (argc != 1 && strcmp("-s", argv[1]))
 		die("usage: dwm [-v]");
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
@@ -3485,6 +3522,11 @@ main(int argc, char *argv[])
 		die("dwm: cannot open display");
         if (!(xcon = XGetXCBConnection(dpy)))
                 die("dwm: cannot get xcb connection\n");
+        if (argc > 1 && !strcmp("-s", argv[1])) {
+                XStoreName(dpy, RootWindow(dpy, DefaultScreen(dpy)), argv[2]);
+                XCloseDisplay(dpy);
+                return 0;
+        }
 	checkotherwm();
         XrmInitialize();
         loadxrdb();

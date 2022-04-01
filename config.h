@@ -53,7 +53,7 @@ static const char *colors[][3]          = {
         [SchemeTag7]    = { color9,     bgcolor,    bgcolor },
         [SchemeTag8]    = { color10,    bgcolor,    bgcolor },
         [SchemeTag9]    = { color11,    bgcolor,    bgcolor },
-        [SchemeLayout]  = { color12,    bgcolor,    bgcolor },
+        [SchemeLayout]  = { color14,    bgcolor,    bgcolor },
 
 };
 
@@ -105,22 +105,33 @@ static const int resizehints = 0;    /* 1 means respect size hints in tiled resi
 static const int lockfullscreen = 1; /* 1 will force focus on the fullscreen window */
 
 static const Layout layouts[] = {
-	/* symbol     arrange function */
-	{ "[]=",      tile },    /* first entry is default */
-	{ "><>",      NULL },    /* no layout function means floating behavior */
-	{ "[M]",      monocle },
-        { NULL,       NULL },
+	/* symbol           arrange function */
+	{ "Tile",           tile },    /* first entry is default */
+	{ "Monocle",        monocle },
+        { "Grid",           grid },
+	{ "Float",          NULL },    /* no layout function means floating behavior */
+        { NULL,             NULL },
 };
+
+//static const Layout layouts[] = {
+//	/* symbol       arrange function */
+//	{ "[]=",        tile },    /* first entry is default */
+//	{ "[M]",        monocle },
+//	{ "HHH",        grid },
+//	{ "><>",        NULL },    /* no layout function means floating behavior */
+//      { NULL,         NULL },
+//};
 
 /* key definitions */
 #define MODKEY Mod4Mask
+#define ALTMOD Mod1Mask
 #define TAGKEYS(KEY,TAG) \
 	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
 	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
 	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
 	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} }, \
-        { Mod1Mask,                     KEY,      focusnthmon,    {.i  = TAG } }, \
-        { Mod1Mask|ShiftMask,           KEY,      tagnthmon,      {.i  = TAG } },
+        { ALTMOD,                       KEY,      focusnthmon,    {.i  = TAG } }, \
+        { ALTMOD|ShiftMask,             KEY,      tagnthmon,      {.i  = TAG } },
 
 /* helper for spawning shell commands in the pre dwm-5.0 fashion */
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
@@ -151,8 +162,9 @@ static Key keys[] = {
 	{ MODKEY,                       XK_Tab,     view,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,       killclient,     {0} },
 	{ MODKEY,                       XK_t,       setlayout,      {.v = &layouts[0]} },
-	{ MODKEY,                       XK_f,       setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_m,       setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_m,       setlayout,      {.v = &layouts[1]} },
+        { MODKEY,                       XK_g,       setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_f,       setlayout,      {.v = &layouts[3]} },
         { MODKEY|ControlMask,           XK_comma,   cyclelayout,    {.i = -1 } },
         { MODKEY|ControlMask,           XK_period,  cyclelayout,    {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_space,   togglefloating, {0} },
@@ -181,9 +193,10 @@ static Key keys[] = {
 	TAGKEYS(                        XK_9,                       8)
 	{ MODKEY|ShiftMask,             XK_r,       quit,           {1} }, 
 	{ MODKEY|ShiftMask,             XK_q,       quit,           {0} },
-        { MODKEY,                       XK_w,       spawn,          SHCMD("qutebrowser \":open -t\"") },
-        { MODKEY|ShiftMask,             XK_w,       spawn,          SHCMD("st -c \"st-float\" -g \"80x24+400+150\" -e sh -c \"set-bg -s\"") },
-        { MODKEY|ShiftMask,             XK_s,       spawn,          SHCMD("st -c \"st-float\" -g 50x10 -e sh -c \"fetch eof; sleep 12000\"") },
+        { MODKEY,                       XK_r,       spawn,          SHCMD("dmenurecord") },
+        { MODKEY,                       XK_w,       spawn,          SHCMD("qutebrowser") },
+        { MODKEY|ControlMask,           XK_w,       spawn,          SHCMD("qutebrowser \":open -p\"") },
+        { MODKEY|ShiftMask,             XK_w,       spawn,          SHCMD("st -c \"st-float\" -g \"100x20\" -e sh -c \"set-bg -s\"") },
         { MODKEY|ShiftMask,             XK_t,       spawn,          SHCMD("set-theme -s") },
         { MODKEY|ControlMask,           XK_l,       spawn,          SHCMD("lock") },
         { MODKEY,                       XK_grave,   spawn,          SHCMD("emoji insert") },
@@ -227,6 +240,8 @@ static Button buttons[] = {
         { ClkLtSymbol,          0,              Button1,        cyclelayout,    {.i = +1} },
         { ClkLtSymbol,          0,              Button2,        setlayout,      {.v = &layouts[0]} },
         { ClkLtSymbol,          0,              Button3,        cyclelayout,    {.i = -1} },
+        { ClkLtSymbol,          0,              Button4,        cyclelayout,    {.i = -1} },
+        { ClkLtSymbol,          0,              Button5,        cyclelayout,    {.i = +1} },
 	{ ClkWinTitle,          0,              Button1,        zoom,           {0} },
 	{ ClkWinTitle,          0,              Button2,        spawn,          {.v = termcmd} },
 	{ ClkWinTitle,          0,              Button3,        togglesticky,   {0} },
