@@ -5,7 +5,7 @@
 
 /* appearance */
 static const char *fonts[]              = { "monospace:size=8", "Vazir:size=8" };
-static const unsigned int borderpx      = 0;    /* border pixel of windows */
+static const unsigned int borderpx      = 2;    /* border pixel of windows */
 static const unsigned int gappx         = 5;    /* gaps between windows */
 static const unsigned int snap          = 32;   /* snap pixel */
 static const unsigned int systraypinning= 0;    /* 0: sloppy systray follows selected monitor, 0: pin systray to monitor X */
@@ -104,23 +104,23 @@ static const int nmaster     = 1;    /* number of clients in master area */
 static const int resizehints = 0;    /* 1 means respect size hints in tiled resizals */
 static const int lockfullscreen = 1; /* 1 will force focus on the fullscreen window */
 
-//static const Layout layouts[] = {
-//	/* symbol           arrange function */
-//        { "Tile",           tile },    /* first entry is default */
-//        { "Monocle",        monocle },
-//        { "Grid",           grid },
-//        { "Float",          NULL },    /* no layout function means floating behavior */
-//        { NULL,             NULL },
-//};
-
 static const Layout layouts[] = {
-	/* symbol       arrange function */
-        { "[]=",        tile },    /* first entry is default */
-        { "[M]",        monocle },
-        { ":::",        grid },
-        { "><>",        NULL },    /* no layout function means floating behavior */
-        { NULL,         NULL },
+	/* symbol           arrange function */
+	{ "Tile",           tile },    /* first entry is default */
+	{ "Monocle",        monocle },
+        { "Grid",           grid },
+	{ "Float",          NULL },    /* no layout function means floating behavior */
+        { NULL,             NULL },
 };
+
+//static const Layout layouts[] = {
+//	/* symbol       arrange function */
+//	{ "[]=",        tile },    /* first entry is default */
+//	{ "[M]",        monocle },
+//	{ "HHH",        grid },
+//	{ "><>",        NULL },    /* no layout function means floating behavior */
+//      { NULL,         NULL },
+//};
 
 /* key definitions */
 #define MODKEY Mod4Mask
@@ -139,7 +139,7 @@ static const Layout layouts[] = {
 /* commands */
 static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() */
 static const char *dmenucmd[] = { "dmenu_run", "-i", "-c", "-l", "20", "-bw", "4", NULL };
-static const char *termcmd[]  = { "tabbed", "-c", "-r", "2", "st", "-w", "''", NULL };
+static const char *termcmd[]  = { "st", NULL };
 static const char *termcmdfloat[]  = { "st", "-c", "st-float", NULL };
 
 static Key keys[] = {
@@ -193,11 +193,9 @@ static Key keys[] = {
 	TAGKEYS(                        XK_9,                       8)
 	{ MODKEY|ShiftMask,             XK_r,       quit,           {1} }, 
 	{ MODKEY|ShiftMask,             XK_q,       quit,           {0} },
-	{ MODKEY,                       XK_q,       spawn,          SHCMD("powermenu") },
         { MODKEY,                       XK_r,       spawn,          SHCMD("dmenurecord") },
-        { MODKEY,                       XK_w,       spawn,          SHCMD("surf-open") },
-        //{ MODKEY|ControlMask,           XK_w,       spawn,          SHCMD("qutebrowser \":open -p\"") },
-        { MODKEY|ShiftMask,             XK_m,       spawn,          SHCMD("dmenu_mpd") },
+        { MODKEY,                       XK_w,       spawn,          SHCMD("qutebrowser") },
+        { MODKEY|ControlMask,           XK_w,       spawn,          SHCMD("qutebrowser \":open -p\"") },
         { MODKEY|ShiftMask,             XK_w,       spawn,          SHCMD("st -c \"st-float\" -g \"100x20\" -e sh -c \"set-bg -s\"") },
         { MODKEY|ShiftMask,             XK_t,       spawn,          SHCMD("set-theme -s") },
         { MODKEY|ControlMask,           XK_l,       spawn,          SHCMD("lock") },
@@ -208,14 +206,6 @@ static Key keys[] = {
         { ControlMask,                  XK_Print,   spawn,          SHCMD("screenshot -s yes") },
         { ControlMask|ShiftMask,        XK_Print,   spawn,          SHCMD("screenshot -s yes -t 5") },
         { 0,            XF86XK_WebCam,              spawn,          SHCMD("webcam") },
-        { 0,            XF86XK_AudioPlay,           spawn,          SHCMD("media-controller toggle") },
-        { 0,            XF86XK_AudioPause,          spawn,          SHCMD("media-controller toggle") },
-        { 0,            XF86XK_AudioNext,           spawn,          SHCMD("media-controller next") },
-        { 0,            XF86XK_AudioPrev,           spawn,          SHCMD("media-controller prev") },
-        { ShiftMask,    XF86XK_AudioPlay,           spawn,          SHCMD("media-controller pause-all") },
-        { ShiftMask,    XF86XK_AudioPause,          spawn,          SHCMD("media-controller pause-all") },
-        { ShiftMask,    XF86XK_AudioNext,           spawn,          SHCMD("media-controller seek-fwd") },
-        { ShiftMask,    XF86XK_AudioPrev,           spawn,          SHCMD("media-controller seek-bwd") },
         { 0,            XF86XK_MonBrightnessUp,     spawn,          SHCMD("backlight up") },
         { 0,            XF86XK_MonBrightnessDown,   spawn,          SHCMD("backlight down") },
         { 0,            XF86XK_AudioRaiseVolume,    spawn,          SHCMD("volume up") },
