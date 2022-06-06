@@ -556,7 +556,7 @@ buttonpress(XEvent *e)
 			arg.ui = 1 << i;
 		} else if (ev->x < x + blw)
 			click = ClkLtSymbol;
-		else if (ev->x > selmon->ww - (int)TEXTW(stext) - getsystraywidth())
+		else if (showtitle != 1 || ev->x > selmon->ww - (int)TEXTW(stext) - getsystraywidth())
 			click = ClkStatusText;
 		else
 			click = ClkWinTitle;
@@ -814,9 +814,9 @@ createmon(void)
 	m->topbar = topbar;
 	m->gappx = gappx;
         m->colorfultag = colorfultag ? colorfultag : 0;
-	m->lt[0] = &layouts[0];
-	m->lt[1] = &layouts[1 % LENGTH(layouts)];
-	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
+	m->lt[0] = &layouts[layouts_default];
+	m->lt[1] = &layouts[(layouts_default + 1) % LENGTH(layouts)];
+	strncpy(m->ltsymbol, layouts[layouts_default].symbol, sizeof m->ltsymbol);
 	return m;
 }
 
@@ -927,8 +927,9 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 	else
 		isCode = 0;
 	text = p;
-
-	w += systraypadding * 2; /* Xpx padding on both sides */
+	if (showsystray)
+		/* Xpx padding on both sides */
+    		w += systraypadding * 2;
 	ret = m->ww - w;
 	x = m->ww - w - getsystraywidth();
 
@@ -1023,16 +1024,16 @@ drawbar(Monitor *m)
 	if (!m->showbar)
 		return;
 
-        if(showsystray && m == systraytomon(m) && !systrayonleft)
-                stw = getsystraywidth();
+	if (showsystray && m == systraytomon(m) && !systrayonleft)
+		stw = getsystraywidth();
 
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon || 1) { /* status is drawn on all monitors */
 		//drw_setscheme(drw, scheme[SchemeNorm]);
 		//tw = TEXTW(stext) - lrpad + 2; /* 2px right padding */
 		//drw_text(drw, m->ww - tw, 0, tw, bh, 0, stext, 0);
-                apply_fribidi(stext);
-                tw = m->ww - drawstatusbar(m, bh, fribidi_text);
+		apply_fribidi(stext);
+		tw = m->ww - drawstatusbar(m, bh, fribidi_text);
 	}
 
         resizebarwin(m);
@@ -1044,40 +1045,39 @@ drawbar(Monitor *m)
 	}
 	x = 0;
 	for (i = 0; i < LENGTH(tags); i++) {
-                if (hidevacanttags) /* Do not draw vacant tags */
-                        if(!(occ & 1 << i || m->tagset[m->seltags] & 1 << i)) continue;
-                if (colorfultag)
-			//drw_setscheme(drw, (m->tagset[m->seltags] & 1 << i ? tagscheme[i] : scheme[SchemeNorm]));
-			//drw_setscheme(drw, (m->tagset[m->seltags] & 1 << i ? tagscheme_sel[i] : tagscheme[i]));
-			drw_setscheme(drw, (occ & 1 << i ? (m->tagset[m->seltags] & 1 << i ? tagscheme_sel[i] : tagscheme[i]) : scheme[SchemeNorm]));
-                else
+		if (hidevacanttags) /* Do not draw vacant tags */
+			if (!(occ & 1 << i || m->tagset[m->seltags] & 1 << i)) continue;
+		if (colorfultag)
+		      //drw_setscheme(drw, (m->tagset[m->seltags] & 1 << i ? tagscheme[i] : scheme[SchemeNorm]));
+		      //drw_setscheme(drw, (m->tagset[m->seltags] & 1 << i ? tagscheme_sel[i] : tagscheme[i]));
+		      drw_setscheme(drw, (occ & 1 << i ? (m->tagset[m->seltags] & 1 << i ? tagscheme_sel[i] : tagscheme[i]) : scheme[SchemeNorm]));
+            	else
                         drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
-                apply_fribidi(tags[i]);
+            	apply_fribidi(tags[i]);
 		w = TEXTW(fribidi_text);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, fribidi_text, urg & 1 << i);
-                if (!hidetagindicator) /* Do not draw top-left tag indicators */
-                        if (occ & 1 << i)
-			        drw_rect(drw, x + boxs, boxs, boxw, boxw,
-				        m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-				        urg & 1 << i);
+            	if (!hidetagindicator) /* Do not draw top-left tag indicators */
+                if (occ & 1 << i)
+		      drw_rect(drw, x + boxs, boxs, boxw, boxw,
+		              m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
+		              urg & 1 << i);
 		x += w;
 	}
-        apply_fribidi(m->ltsymbol);
+	apply_fribidi(m->ltsymbol);
 	w = blw = TEXTW(fribidi_text);
 	drw_setscheme(drw, scheme[SchemeLayout]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, fribidi_text, 0);
 
 	if ((w = m->ww - tw - stw - x) > bh) {
-		if (m->sel) {
+		if (showtitle && m->sel) {
 			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
-                        apply_fribidi(m->sel->name);
-                        int mid = lrpad / 2;
-                        if (truecenteredtitle)
-                                if (TEXTW(fribidi_text) <= w)
-                                        mid = (w - TEXTW(fribidi_text)) / 2;
-                                        //mid = lrpad / 2;
-			drw_text(drw, x, 0, w, bh, mid, fribidi_text, 0);
-			if (m->sel->isfloating && !hidetagindicator)
+            apply_fribidi(m->sel->name);
+            int mid = lrpad / 2;
+            if (truecenteredtitle && TEXTW(fribidi_text) <= w)
+                    mid = (w - TEXTW(fribidi_text)) / 2;
+                    //mid = lrpad / 2;
+            drw_text(drw, x, 0, w, bh, mid, fribidi_text, 0);
+            if (m->sel->isfloating && !hidetagindicator)
 				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
 		} else {
 			drw_setscheme(drw, scheme[SchemeNorm]);
@@ -1884,7 +1884,7 @@ propertynotify(XEvent *e)
 		}
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
 			updatetitle(c);
-			if (c == c->mon->sel)
+			if (showtitle && c == c->mon->sel)
 				drawbar(c->mon);
 		}
 		if (ev->atom == netatom[NetWMWindowType])
@@ -3231,10 +3231,12 @@ zoom(const Arg *arg)
 int
 main(int argc, char *argv[])
 {
-	if (argc == 2 && !strcmp("-v", argv[1]))
-		die("dwm-"VERSION);
+        if (argc == 2 && !strcmp("-v", argv[1]))
+                die("dwm-"VERSION);
+        else if (argc == 2 && !strcmp("-f", argv[1]))
+                layouts_default = layouts_floating;
         else if (argc != 1 && strcmp("-s", argv[1]))
-		die("usage: dwm [-v]");
+                die("usage: dwm [-fvh] [-s STATUS_TEXT]");
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
 	if (!(dpy = XOpenDisplay(NULL)))
